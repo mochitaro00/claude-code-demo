@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code 疑似体験</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #f5efe6;
+      color: #1a1a1a;
+      font-family: -apple-system, 'Helvetica Neue', 'Hiragino Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ========== Page Header ========== */
+    .page-header {
+      text-align: center;
+      padding: 32px 20px 16px;
+      width: 100%;
+    }
+    .page-title {
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 700;
+      color: #2d2520;
+      letter-spacing: 1px;
+    }
+    .page-subtitle {
+      font-size: 14px;
+      color: #8a7e74;
+      margin-top: 4px;
+    }
+
+    /* ========== Step Indicator ========== */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      justify-content: center;
+    }
+    .step-pip {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #d4c9bc;
+      transition: all 0.3s;
+    }
+    .step-pip.active { background: #c97f4a; transform: scale(1.2); }
+    .step-pip.done { background: #6aaa64; }
+    .step-pip-line {
+      width: 20px; height: 2px;
+      background: #d4c9bc;
+    }
+
+    /* ========== Terminal Window ========== */
+    .terminal-wrapper {
+      width: 90%;
+      max-width: 720px;
+      margin: 8px auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .terminal-titlebar {
+      background: #2d2d2d;
+      border-radius: 12px 12px 0 0;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .titlebar-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green { background: #28c840; }
+    .titlebar-text {
+      flex: 1;
+      text-align: center;
+      color: #8a8a8a;
+      font-size: 13px;
+      margin-right: 48px;
+    }
+    .terminal {
+      background: #1a1a2e;
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: clamp(12px, 2.5vw, 14px);
+      line-height: 1.8;
+      color: #e4e4e7;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      scroll-behavior: smooth;
+      min-height: 300px;
+      max-height: 55vh;
+    }
+    .terminal::-webkit-scrollbar { width: 6px; }
+    .terminal::-webkit-scrollbar-track { background: transparent; }
+    .terminal::-webkit-scrollbar-thumb { background: #3a3a4a; border-radius: 3px; }
+
+    .line {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      min-height: 1.8em;
+    }
+    .line:empty { min-height: 1.8em; }
+
+    .prompt-char { color: #c084fc; font-weight: 700; }
+    .bash-prompt { color: #4ade80; }
+    .user-text { color: #e4e4e7; }
+    .claude-text { color: #d4d4d8; }
+    .file-op { color: #60a5fa; }
+    .file-content { color: #a1a1aa; }
+    .success { color: #4ade80; }
+    .dim { color: #71717a; }
+    .welcome { color: #c084fc; }
+    .mascot { color: #e0a8ff; }
+    .warning { color: #fbbf24; }
+    .folder-name { color: #60a5fa; font-weight: 700; }
+
+    /* Welcome Screen (Claude Code startup) */
+    .welcome-box {
+      border: 1px solid #555;
+      border-radius: 0;
+      margin: 4px 0;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    }
+    .welcome-header {
+      color: #d4879c;
+      font-size: clamp(11px, 2.2vw, 13px);
+      margin-bottom: 8px;
+    }
+    .welcome-body {
+      display: flex;
+      gap: 0;
+    }
+    .welcome-left {
+      flex: 1;
+      padding: 12px 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .welcome-left .wb-title {
+      color: #e4e4e7;
+      font-weight: 700;
+      font-size: clamp(13px, 2.6vw, 16px);
+    }
+    .welcome-left .wb-info {
+      color: #8a8a8a;
+      font-size: clamp(10px, 2vw, 12px);
+      line-height: 1.5;
+    }
+    .welcome-right {
+      flex: 1;
+      padding: 12px 16px;
+      border-left: 1px solid #555;
+    }
+    .welcome-right .wr-heading {
+      color: #d4879c;
+      font-size: clamp(11px, 2.2vw, 13px);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .welcome-right .wr-text {
+      color: #a1a1aa;
+      font-size: clamp(10px, 2vw, 12px);
+      line-height: 1.6;
+    }
+    .welcome-right .wr-divider {
+      border: none;
+      border-top: 1px solid #555;
+      margin: 8px 0;
+    }
+    .welcome-voice {
+      color: #a1a1aa;
+      font-size: clamp(10px, 2vw, 12px);
+      padding: 8px 0 0;
+    }
+    .welcome-voice .sparkle { color: #d4879c; }
+
+    /* Mascot image */
+    .mascot-img {
+      width: clamp(56px, 12vw, 88px);
+      height: auto;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      margin: 4px 0;
+      display: block;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px; height: 17px;
+      background: #c084fc;
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ========== Command Card (outside terminal) ========== */
+    .command-card {
+      width: 90%;
+      max-width: 720px;
+      margin: 12px auto;
+      background: #fff;
+      border: 1px solid #e0d6cc;
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .command-card.visible { display: flex; }
+    .command-card-label {
+      font-size: 13px;
+      color: #8a7e74;
+      font-weight: 600;
+    }
+    .command-card-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .command-text {
+      flex: 1;
+      background: #f9f5f0;
+      border: 1px solid #e0d6cc;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 13px;
+      color: #2d2520;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .copy-btn {
+      background: #c97f4a;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .copy-btn:hover { background: #b06d3a; }
+    .copy-btn.copied {
+      background: #6aaa64;
+    }
+
+    /* ========== Action Area ========== */
+    .action-area {
+      width: 90%;
+      max-width: 720px;
+      margin: 8px auto 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .step-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .step-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #2d2520;
+    }
+    .step-desc {
+      font-size: 12px;
+      color: #8a7e74;
+      margin-top: 2px;
+    }
+    .action-btn {
+      background: #c97f4a;
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+    .action-btn:hover { background: #b06d3a; transform: translateY(-1px); }
+    .action-btn:disabled {
+      background: #d4c9bc;
+      color: #a89e94;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .action-btn.paste-btn {
+      background: #5b8dd9;
+    }
+    .action-btn.paste-btn:hover {
+      background: #4a7cc8;
+    }
+    .action-btn.enter-btn {
+      background: #6aaa64;
+    }
+    .action-btn.enter-btn:hover {
+      background: #5a9a54;
+    }
+
+    /* ========== Intro Screen ========== */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: #f5efe6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.4s;
+    }
+    .intro-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .intro-logo {
+      font-size: 13px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #c97f4a;
+    }
+    .intro-title {
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 700;
+      color: #2d2520;
+      line-height: 1.3;
+    }
+    .intro-title em {
+      font-style: normal;
+      color: #c97f4a;
+    }
+    .intro-desc {
+      color: #8a7e74;
+      font-size: 16px;
+      line-height: 1.7;
+      max-width: 440px;
+    }
+    .intro-btn {
+      background: #c97f4a;
+      color: #fff;
+      border: none;
+      padding: 16px 40px;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      margin-top: 8px;
+    }
+    .intro-btn:hover { background: #b06d3a; transform: translateY(-2px); }
+
+    /* ========== End Screen ========== */
+    .end-overlay {
+      position: fixed;
+      inset: 0;
+      background: #f5efe6;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+      gap: 16px;
+      z-index: 100;
+    }
+    .end-overlay.visible { display: flex; }
+    .end-title {
+      font-size: clamp(24px, 5vw, 40px);
+      font-weight: 700;
+      color: #2d2520;
+    }
+    .end-desc {
+      color: #8a7e74;
+      font-size: 16px;
+      line-height: 1.8;
+      max-width: 460px;
+    }
+    .end-features {
+      text-align: left;
+      color: #5a524a;
+      font-size: 15px;
+      line-height: 2.2;
+      margin-top: 4px;
+    }
+    .end-features span {
+      color: #c97f4a;
+      margin-right: 8px;
+    }
+
+    /* Mobile */
+    @media (max-width: 480px) {
+      .action-area { flex-direction: column; align-items: stretch; }
+      .action-btn { text-align: center; }
+      .command-card-row { flex-direction: column; }
+      .terminal { max-height: 45vh; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Intro Overlay ===== -->
+  <div id="introOverlay" class="intro-overlay">
+    <div class="intro-logo">Simulated Experience</div>
+    <div class="intro-title">Claude Code<br><em>疑似体験会場</em></div>
+    <p class="intro-desc">日本語で話しかけるだけで、AIがファイルを操作してくれる。<br>「実行するAI」の感覚を体験してみましょう。</p>
+    <button class="intro-btn" onclick="startExperience()">体験をはじめる</button>
+  </div>
+
+  <!-- ===== End Overlay ===== -->
+  <div id="endOverlay" class="end-overlay">
+    <div class="intro-logo">Complete!</div>
+    <div class="end-title">体験完了！</div>
+    <p class="end-desc">ここまでが疑似体験でした。<br>実際のClaude Codeでは、もっと自由に、<br>あなたの言葉でAIに指示を出せます。</p>
+    <div class="end-features">
+      <div><span>✦</span>日本語で指示するだけでファイルを操作</div>
+      <div><span>✦</span>散らばったファイルを一発で整理</div>
+      <div><span>✦</span>複数ファイルを読んで要約・統合</div>
+      <div><span>✦</span>CLAUDE.mdで自分だけのAI環境を育てられる</div>
+    </div>
+    <button class="intro-btn" onclick="restartExperience()">もう一度体験する</button>
+  </div>
+
+  <!-- ===== Main Content ===== -->
+  <div class="page-header">
+    <div class="page-title">Claude Code 疑似体験会場</div>
+    <div class="page-subtitle">ボタンを押しながら、AIの「実行力」を体感しよう</div>
+  </div>
+
+  <div class="step-indicator" id="stepIndicator"></div>
+
+  <!-- Command Card (shown outside terminal for copy-paste steps) -->
+  <div class="command-card" id="commandCard">
+    <div class="command-card-label" id="commandLabel">以下のコマンドをコピーしてください：</div>
+    <div class="command-card-row">
+      <div class="command-text" id="commandText"></div>
+      <button class="copy-btn" id="copyBtn" onclick="copyCommand()">コピー</button>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div class="terminal-wrapper">
+    <div class="terminal-titlebar">
+      <div class="titlebar-dot dot-red"></div>
+      <div class="titlebar-dot dot-yellow"></div>
+      <div class="titlebar-dot dot-green"></div>
+      <div class="titlebar-text">Terminal</div>
+    </div>
+    <div class="terminal" id="terminal"></div>
+  </div>
+
+  <!-- Action Area -->
+  <div class="action-area">
+    <div class="step-info">
+      <div class="step-title" id="stepTitle"></div>
+      <div class="step-desc" id="stepDesc"></div>
+    </div>
+    <button class="action-btn" id="actionBtn" disabled onclick="handleAction()">次のステップへ ▶</button>
+  </div>
+
+<script>
+// ============================================================
+//  Configuration
+// ============================================================
+const TYPE_SPEED   = 35;
+const STREAM_SPEED = 12;
+const LINE_PAUSE   = 60;
+const PAUSE_SHORT  = 400;
+const PAUSE_MED    = 700;
+const PAUSE_LONG   = 1100;
+
+// ============================================================
+//  State
+// ============================================================
+let currentStep = 0;
+let actionMode = 'next'; // 'paste', 'enter', 'next'
+let pendingCommand = '';
+
+const termEl    = document.getElementById('terminal');
+const actionBtn = document.getElementById('actionBtn');
+const cmdCard   = document.getElementById('commandCard');
+const cmdText   = document.getElementById('commandText');
+const cmdLabel  = document.getElementById('commandLabel');
+const copyBtn   = document.getElementById('copyBtn');
+
+// ============================================================
+//  Terminal Helper
+// ============================================================
+class Terminal {
+  constructor(el) { this.el = el; }
+
+  wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  clear() { this.el.innerHTML = ''; }
+
+  scroll() { this.el.scrollTop = this.el.scrollHeight; }
+
+  addLine(text, className) {
+    const div = document.createElement('div');
+    div.className = 'line' + (className ? ' ' + className : '');
+    div.textContent = text || '';
+    this.el.appendChild(div);
+    this.scroll();
+    return div;
+  }
+
+  async typeCommand(prompt, command, promptClass) {
+    this.removeCursor();
+    const div = document.createElement('div');
+    div.className = 'line';
+    const ps = document.createElement('span');
+    ps.className = promptClass || 'prompt-char';
+    ps.textContent = prompt;
+    div.appendChild(ps);
+    const ts = document.createElement('span');
+    ts.className = 'user-text';
+    div.appendChild(ts);
+    this.el.appendChild(div);
+    for (const ch of command) {
+      ts.textContent += ch;
+      this.scroll();
+      await this.wait(TYPE_SPEED + Math.random() * 18);
+    }
+    await this.wait(200);
+    this.addLine('');
+  }
+
+  async streamLine(text, className) {
+    const div = document.createElement('div');
+    div.className = 'line' + (className ? ' ' + className : '');
+    this.el.appendChild(div);
+    for (const ch of text) {
+      div.textContent += ch;
+      this.scroll();
+      await this.wait(STREAM_SPEED + Math.random() * 8);
+    }
+    await this.wait(LINE_PAUSE);
+  }
+
+  showPrompt(char) {
+    this.removeCursor();
+    const div = document.createElement('div');
+    div.className = 'line';
+    const ps = document.createElement('span');
+    ps.className = char === '$ ' ? 'bash-prompt' : 'prompt-char';
+    ps.textContent = char || '> ';
+    div.appendChild(ps);
+    const cur = document.createElement('span');
+    cur.className = 'cursor';
+    cur.id = 'active-cursor';
+    div.appendChild(cur);
+    this.el.appendChild(div);
+    this.scroll();
+  }
+
+  addHTML(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    this.el.appendChild(div);
+    this.scroll();
+    return div;
+  }
+
+  removeCursor() {
+    const c = document.getElementById('active-cursor');
+    if (c) c.remove();
+  }
+}
+
+const term = new Terminal(termEl);
+
+// ============================================================
+//  UI Helpers
+// ============================================================
+function showCommandCard(label, command) {
+  cmdLabel.textContent = label;
+  cmdText.textContent = command;
+  copyBtn.textContent = 'コピー';
+  copyBtn.classList.remove('copied');
+  cmdCard.classList.add('visible');
+  pendingCommand = command;
+}
+
+function hideCommandCard() {
+  cmdCard.classList.remove('visible');
+}
+
+function copyCommand() {
+  navigator.clipboard.writeText(pendingCommand).catch(() => {});
+  copyBtn.textContent = 'コピーしました！';
+  copyBtn.classList.add('copied');
+
+  // Enable paste action
+  setAction('paste', 'ターミナルに貼り付ける', 'paste-btn');
+}
+
+function setAction(mode, label, extraClass) {
+  actionMode = mode;
+  actionBtn.textContent = label;
+  actionBtn.disabled = false;
+  actionBtn.className = 'action-btn' + (extraClass ? ' ' + extraClass : '');
+}
+
+function setNextAction(isLast) {
+  actionMode = 'next';
+  actionBtn.textContent = isLast ? '体験を終了する ✓' : '次のステップへ ▶';
+  actionBtn.disabled = false;
+  actionBtn.className = 'action-btn';
+}
+
+function disableAction() {
+  actionBtn.disabled = true;
+}
+
+// Step indicator
+const stepIndicator = document.getElementById('stepIndicator');
+const TOTAL_STEPS = 5;
+function buildStepIndicator() {
+  stepIndicator.innerHTML = '';
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    if (i > 0) {
+      const line = document.createElement('div');
+      line.className = 'step-pip-line';
+      stepIndicator.appendChild(line);
+    }
+    const pip = document.createElement('div');
+    pip.className = 'step-pip';
+    pip.id = 'pip-' + i;
+    stepIndicator.appendChild(pip);
+  }
+}
+function updatePips() {
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    const pip = document.getElementById('pip-' + i);
+    pip.className = 'step-pip';
+    if (i < currentStep) pip.classList.add('done');
+    if (i === currentStep) pip.classList.add('active');
+  }
+}
+
+// ============================================================
+//  Step Definitions
+// ============================================================
+const steps = [
+  // ─── Step 1: Install & Launch ───
+  {
+    title: 'Step 1/5 ― インストール＆起動',
+    desc: 'コマンドをコピーして、ターミナルに貼り付けてみよう',
+    run: async () => {
+      term.clear();
+      term.showPrompt('$ ');
+
+      // Show command card
+      showCommandCard(
+        '① このコマンドをコピーしてください：',
+        'curl -fsSL https://claude.ai/install.sh | bash'
+      );
+      disableAction();
+      // Wait for user to copy → paste → enter (handled by handleAction)
+    },
+    onPaste: async () => {
+      hideCommandCard();
+      // Type command into terminal
+      await term.typeCommand('$ ', pendingCommand, 'bash-prompt');
+
+      // Show "Enter" button
+      setAction('enter', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter: async () => {
+      disableAction();
+
+      // Install animation
+      await term.wait(PAUSE_MED);
+      const spinner = term.addLine('  Downloading Claude Code...', 'dim');
+      await term.wait(PAUSE_MED);
+      spinner.textContent = '  Installing Claude Code...';
+      await term.wait(PAUSE_MED);
+      spinner.textContent = '  ✓ Claude Code v1.0.31 をインストールしました！';
+      spinner.className = 'line success';
+      await term.wait(PAUSE_LONG);
+
+      // Launch
+      term.addLine('');
+
+      // Show second command
+      showCommandCard('② Claude Code を起動しましょう：', 'claude');
+      disableAction();
+    },
+    onPaste2: async () => {
+      hideCommandCard();
+      await term.typeCommand('$ ', 'claude', 'bash-prompt');
+      setAction('enter2', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter2: async () => {
+      disableAction();
+      await term.wait(PAUSE_MED);
+
+      const welcomeHTML = `
+        <div class="welcome-box">
+          <div class="welcome-header">── Claude Code v2.1.71 ──────────────────────────────</div>
+          <div class="welcome-body">
+            <div class="welcome-left">
+              <div class="wb-title">Welcome back ゲスト！</div>
+              <img class="mascot-img" src="data:image/png;base64,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" alt="Claude mascot">
+              <div class="wb-info">
+                Opus 4.6 · Claude Max<br>
+                you@example.com's Organization<br>
+                /Users/you
+              </div>
+            </div>
+            <div class="welcome-right">
+              <div class="wr-heading">Tips for getting started</div>
+              <div class="wr-text">
+                Run /init to create a CLAUDE.md file with instructions for Claude<br>
+                Note: You have launched claude in your home directory.
+              </div>
+              <hr class="wr-divider">
+              <div class="wr-heading">Recent activity</div>
+              <div class="wr-text">No recent activity</div>
+            </div>
+          </div>
+          <div class="welcome-voice"><span class="sparkle">✻</span> Voice mode is now available · /voice to enable</div>
+        </div>
+      `;
+
+      term.addHTML(welcomeHTML);
+      await term.wait(PAUSE_LONG);
+      term.addLine('');
+      term.showPrompt();
+
+      setNextAction(false);
+    }
+  },
+
+  // ─── Step 2: CLAUDE.md + Kansai-ben (interactive) ───
+  {
+    title: 'Step 2/5 ― CLAUDE.mdで性格を設定',
+    desc: '設定ファイルでAIの性格をカスタマイズしよう',
+    run: async () => {
+      // Show command card for CLAUDE.md creation
+      showCommandCard(
+        '① CLAUDE.mdを作る指示をコピーしてください：',
+        'CLAUDE.mdを作って。中に「常に関西弁で喋ること」と書いて'
+      );
+      disableAction();
+    },
+    onPaste: async () => {
+      hideCommandCard();
+      await term.typeCommand('> ', pendingCommand);
+      setAction('enter', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter: async () => {
+      disableAction();
+      await term.wait(PAUSE_LONG);
+
+      await term.streamLine('CLAUDE.mdファイルを作成しますね。', 'claude-text');
+      await term.wait(PAUSE_SHORT);
+      term.addLine('');
+      term.addLine('  📄 Write CLAUDE.md', 'file-op');
+      await term.wait(PAUSE_SHORT);
+      for (const line of [
+        '  ┃ # コミュニケーションスタイル',
+        '  ┃ - 常に関西弁で喋ること（「〜やで」「〜やな」「せやな」等）',
+      ]) {
+        term.addLine(line, 'file-content');
+        await term.wait(200);
+      }
+      await term.wait(PAUSE_SHORT);
+      term.addLine('');
+      term.addLine('  ✓ CLAUDE.md を作成しました。', 'success');
+      term.addLine('');
+      await term.wait(PAUSE_LONG);
+
+      term.showPrompt();
+
+      // Show second command card
+      showCommandCard(
+        '② 関西弁で喋るか試してみましょう：',
+        '自己紹介して！'
+      );
+      disableAction();
+    },
+    onPaste2: async () => {
+      hideCommandCard();
+      await term.typeCommand('> ', pendingCommand);
+      setAction('enter2', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter2: async () => {
+      disableAction();
+      await term.wait(PAUSE_LONG);
+
+      for (const line of [
+        'ほな自己紹介するで〜！',
+        '',
+        'ワイはClaude Code、Anthropicが作ったAIアシスタントや。',
+        'ターミナルの中で動いてて、ファイル作ったり、',
+        '整理したり、なんでもお手伝いできるで。',
+        '',
+        'さっき作ってくれたCLAUDE.mdを読んで、',
+        '関西弁で喋ってるっちゅうわけや！',
+        '',
+        '気軽に話しかけてな〜',
+      ]) {
+        await term.streamLine(line, 'claude-text');
+      }
+      term.addLine('');
+      term.showPrompt();
+
+      setNextAction(false);
+    }
+  },
+
+  // ─── Step 3: Rename a file (interactive) ───
+  {
+    title: 'Step 3/5 ― ファイル名を変えてもらう',
+    desc: 'AIがあなたのパソコンのファイルを直接操作する体験',
+    run: async () => {
+      term.clear();
+
+      term.addLine('  💻 デスクトップの状態：', 'dim');
+      term.addLine('');
+      for (const f of [
+        '  議事録_2026-0301_定例会議.txt',
+        '  議事録_2026-0215_キックオフ.txt',
+        '  議事録_2026-0110_年始MTG.txt',
+        '  見積もり_A社_LP制作.pdf',
+        '  見積もり_B社_ロゴ制作.pdf',
+        '  請求書_A社_2月分.pdf',
+        '  素材_バナー_v1.png',
+        '  素材_バナー_v2.png',
+        '  素材_ロゴ案.png',
+        '  スクショ 2026-03-01 14.32.05.png',
+      ]) {
+        term.addLine(f, 'file-content');
+        await term.wait(80);
+      }
+      term.addLine('');
+      await term.wait(PAUSE_MED);
+      term.showPrompt();
+
+      showCommandCard(
+        'ファイル名を変える指示をコピーしてください：',
+        '「スクショ 2026-03-01 14.32.05.png」を「定例会議_画面共有.png」に名前変えて'
+      );
+      disableAction();
+    },
+    onPaste: async () => {
+      hideCommandCard();
+      await term.typeCommand('> ', pendingCommand);
+      setAction('enter', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter: async () => {
+      disableAction();
+      await term.wait(PAUSE_LONG);
+
+      await term.streamLine('了解や！ファイル名を変更するで。', 'claude-text');
+      await term.wait(PAUSE_SHORT);
+      term.addLine('');
+      term.addLine('  🔄 Rename', 'file-op');
+      term.addLine('     スクショ 2026-03-01 14.32.05.png', 'dim');
+      term.addLine('   → 定例会議_画面共有.png', 'success');
+      await term.wait(PAUSE_MED);
+      term.addLine('');
+      await term.streamLine('変更できたで！これでわかりやすい名前になったな。', 'claude-text');
+      term.addLine('');
+      term.addLine('  💡 ChatGPTやWeb版Claudeではファイル操作はできません。', 'warning');
+      term.addLine('     Claude Codeは「実行するAI」。あなたのPCを直接操作できます。', 'warning');
+      term.addLine('');
+      term.showPrompt();
+
+      setNextAction(false);
+    }
+  },
+
+  // ─── Step 4: Organize files (interactive) ───
+  {
+    title: 'Step 4/5 ― 散らばったファイルを一発整理',
+    desc: '一言で種類ごとにフォルダ分け',
+    run: async () => {
+      term.clear();
+
+      term.addLine('  💻 デスクトップの状態（ぐちゃぐちゃ…）：', 'dim');
+      term.addLine('');
+      for (const f of [
+        '  議事録_2026-0301_定例会議.txt',
+        '  見積もり_A社_LP制作.pdf',
+        '  素材_バナー_v1.png',
+        '  議事録_2026-0215_キックオフ.txt',
+        '  請求書_A社_2月分.pdf',
+        '  素材_バナー_v2.png',
+        '  見積もり_B社_ロゴ制作.pdf',
+        '  議事録_2026-0110_年始MTG.txt',
+        '  素材_ロゴ案.png',
+        '  定例会議_画面共有.png',
+      ]) {
+        term.addLine(f, 'file-content');
+        await term.wait(60);
+      }
+      term.addLine('');
+      await term.wait(PAUSE_MED);
+      term.showPrompt();
+
+      showCommandCard(
+        'ファイル整理の指示をコピーしてください：',
+        'デスクトップのファイルを種類ごとにフォルダ分けして整理して'
+      );
+      disableAction();
+    },
+    onPaste: async () => {
+      hideCommandCard();
+      await term.typeCommand('> ', pendingCommand);
+      setAction('enter', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter: async () => {
+      disableAction();
+      await term.wait(PAUSE_LONG);
+
+      await term.streamLine('デスクトップのファイルを確認したで。10個あるな。', 'claude-text');
+      await term.streamLine('種類ごとにフォルダ作って整理するわ！', 'claude-text');
+      await term.wait(PAUSE_MED);
+      term.addLine('');
+
+      for (const f of [
+        '  📁 Create  議事録/',
+        '  📁 Create  見積もり/',
+        '  📁 Create  請求書/',
+        '  📁 Create  素材/',
+      ]) {
+        term.addLine(f, 'file-op');
+        await term.wait(PAUSE_SHORT);
+      }
+      term.addLine('');
+
+      for (const m of [
+        '  ✓ 議事録_2026-0110_年始MTG.txt → 議事録/',
+        '  ✓ 議事録_2026-0215_キックオフ.txt → 議事録/',
+        '  ✓ 議事録_2026-0301_定例会議.txt → 議事録/',
+        '  ✓ 見積もり_A社_LP制作.pdf → 見積もり/',
+        '  ✓ 見積もり_B社_ロゴ制作.pdf → 見積もり/',
+        '  ✓ 請求書_A社_2月分.pdf → 請求書/',
+        '  ✓ 素材_バナー_v1.png → 素材/',
+        '  ✓ 素材_バナー_v2.png → 素材/',
+        '  ✓ 素材_ロゴ案.png → 素材/',
+        '  ✓ 定例会議_画面共有.png → 素材/',
+      ]) {
+        term.addLine(m, 'success');
+        await term.wait(150);
+      }
+      await term.wait(PAUSE_MED);
+      term.addLine('');
+      await term.streamLine('整理できたで！こんな感じになったわ：', 'claude-text');
+      term.addLine('');
+
+      for (const line of [
+        '  📁 議事録/',
+        '    ├── 2026-0110_年始MTG.txt',
+        '    ├── 2026-0215_キックオフ.txt',
+        '    └── 2026-0301_定例会議.txt',
+        '  📁 見積もり/',
+        '    ├── A社_LP制作.pdf',
+        '    └── B社_ロゴ制作.pdf',
+        '  📁 請求書/',
+        '    └── A社_2月分.pdf',
+        '  📁 素材/',
+        '    ├── バナー_v1.png',
+        '    ├── バナー_v2.png',
+        '    ├── ロゴ案.png',
+        '    └── 定例会議_画面共有.png',
+      ]) {
+        term.addLine(line, line.startsWith('  📁') ? 'folder-name' : 'file-content');
+        await term.wait(100);
+      }
+      term.addLine('');
+      term.addLine('  10個のファイルを4つのフォルダに整理したで！', 'success');
+      term.addLine('');
+      term.showPrompt();
+
+      setNextAction(false);
+    }
+  },
+
+  // ─── Step 5: Read & Summarize (interactive) ───
+  {
+    title: 'Step 5/5 ― 複数ファイルを読んでまとめる',
+    desc: '3つの議事録から決定事項を抜き出して一覧にまとめます',
+    run: async () => {
+      term.clear();
+      term.showPrompt();
+
+      showCommandCard(
+        '議事録をまとめる指示をコピーしてください：',
+        '議事録フォルダの中身を全部読んで、決定事項だけ抜き出して一覧にまとめて'
+      );
+      disableAction();
+    },
+    onPaste: async () => {
+      hideCommandCard();
+      await term.typeCommand('> ', pendingCommand);
+      setAction('enter', 'Enter を押す ↵', 'enter-btn');
+    },
+    onEnter: async () => {
+      disableAction();
+      await term.wait(PAUSE_LONG);
+
+      await term.streamLine('議事録フォルダの中身を確認するで！', 'claude-text');
+      await term.wait(PAUSE_SHORT);
+      term.addLine('');
+
+      for (const f of [
+        '  📖 Read  議事録/2026-0110_年始MTG.txt',
+        '  📖 Read  議事録/2026-0215_キックオフ.txt',
+        '  📖 Read  議事録/2026-0301_定例会議.txt',
+      ]) {
+        term.addLine(f, 'file-op');
+        await term.wait(PAUSE_MED);
+      }
+      term.addLine('');
+
+      await term.streamLine('3つの議事録を読み込んだで。決定事項を抜き出すわ！', 'claude-text');
+      await term.wait(PAUSE_MED);
+      term.addLine('');
+      term.addLine('  📄 Write  決定事項まとめ.md', 'file-op');
+      await term.wait(PAUSE_SHORT);
+
+      for (const line of [
+        '  ┃ # 決定事項まとめ（2026年1月〜3月）',
+        '  ┃ ',
+        '  ┃ ## 1月10日 年始MTG',
+        '  ┃ - Q1の売上目標を800万円に設定',
+        '  ┃ - 新規採用は2月から開始',
+        '  ┃ - 社内勉強会を月1回開催する',
+        '  ┃ ',
+        '  ┃ ## 2月15日 キックオフ',
+        '  ┃ - A社LP制作は3月末納品で確定',
+        '  ┃ - デザインカンプは3月1日までに提出',
+        '  ┃ - 窓口担当は田中さん',
+        '  ┃ ',
+        '  ┃ ## 3月1日 定例会議',
+        '  ┃ - B社ロゴ制作の追加修正は無償対応',
+        '  ┃ - 次回定例は3月15日（金）14:00',
+        '  ┃ - 請求書は月末に一括送付',
+      ]) {
+        term.addLine(line, 'file-content');
+        await term.wait(120);
+      }
+      await term.wait(PAUSE_MED);
+      term.addLine('');
+      term.addLine('  ✓ 決定事項まとめ.md を作成したで！', 'success');
+      term.addLine('');
+
+      for (const line of [
+        '3つの議事録から決定事項を9個抽出して、',
+        '日付順にまとめたファイルを作ったで。',
+        '',
+        '複数ファイルをまたいで情報を整理する ――',
+        'これがChatではできない「実行するAI」の力や！',
+      ]) {
+        await term.streamLine(line, 'claude-text');
+      }
+      term.addLine('');
+      term.showPrompt();
+
+      setNextAction(true);
+    }
+  },
+];
+
+// ============================================================
+//  Action Handler (multi-phase for interactive steps)
+// ============================================================
+let stepPhase = 0; // tracks sub-phases within interactive steps
+
+async function handleAction() {
+  const step = steps[currentStep];
+
+  if (actionMode === 'paste') {
+    disableAction();
+    if (stepPhase === 0 && step.onPaste) {
+      stepPhase = 1;
+      await step.onPaste();
+    } else if (stepPhase === 2 && step.onPaste2) {
+      stepPhase = 3;
+      await step.onPaste2();
+    }
+  } else if (actionMode === 'enter') {
+    disableAction();
+    if (stepPhase === 1 && step.onEnter) {
+      stepPhase = 2;
+      await step.onEnter();
+    }
+  } else if (actionMode === 'enter2') {
+    disableAction();
+    if (stepPhase === 3 && step.onEnter2) {
+      stepPhase = 4;
+      await step.onEnter2();
+    }
+  } else if (actionMode === 'next') {
+    if (currentStep >= steps.length - 1) {
+      document.getElementById('endOverlay').classList.add('visible');
+      return;
+    }
+    currentStep++;
+    stepPhase = 0; // reset phase for new step
+    disableAction();
+    hideCommandCard();
+    updatePips();
+    updateStepInfo();
+    await steps[currentStep].run();
+  }
+}
+
+function updateStepInfo() {
+  document.getElementById('stepTitle').textContent = steps[currentStep].title;
+  document.getElementById('stepDesc').textContent  = steps[currentStep].desc;
+}
+
+// ============================================================
+//  Start / Restart
+// ============================================================
+function startExperience() {
+  document.getElementById('introOverlay').classList.add('hidden');
+  currentStep = 0;
+  stepPhase = 0;
+  buildStepIndicator();
+  updatePips();
+  updateStepInfo();
+  steps[0].run();
+}
+
+function restartExperience() {
+  document.getElementById('endOverlay').classList.remove('visible');
+  currentStep = 0;
+  stepPhase = 0;
+  term.clear();
+  hideCommandCard();
+  updatePips();
+  updateStepInfo();
+  steps[0].run();
+}
+</script>
+
+</body>
+</html>
